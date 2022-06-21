@@ -1,45 +1,46 @@
-const buttonPlay = document.getElementById("play");
+const startCapture = () => {
+    return navigator.mediaDevices.getDisplayMedia({audio: true, video: { mediaSource: "screen"}})
+        .catch(err => {
+            console.error('Error:' + err)
+            return null
+        })
+}
 
-buttonPlay.addEventListener("click", function(){
-    startRecording();
-});
+const createRecorder =  (stream) => {
+    // the stream data is stored in this array
+    let recordedChunks = []; 
+    const mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = function (e) {
+      if (e.data.size > 0) {
+        recordedChunks.push(e.data);
+      }  
+    }
+    mediaRecorder.onstop = function () {
+       saveFile(recordedChunks)
+       recordedChunks = []
+    }
+    mediaRecorder.start(200); // For every 200ms the stream data will be stored in a separate chunk.
+    return mediaRecorder;
+}
 
-function sendMessage(message){
-    /* handling recording state */ 
-    var port = chrome.runtime.connect();
-    port.postMessage({
-        'from': 'popup',
-        'start': message
-    });
-};
+const saveFile = (recordedChunks) => {
+    const blob = new Blob(recordedChunks, {
+       type: 'video/mp4'
+     })
+     let filename = window.prompt('Enter file name'),
+         downloadLink = document.createElement('a')
+     downloadLink.href = URL.createObjectURL(blob)
+     downloadLink.download = `${filename}.mp4`
+     document.body.appendChild(downloadLink)
+     downloadLink.click();
+     URL.revokeObjectURL(blob); // clear from memory
+     document.body.removeChild(downloadLink)
+ }
 
-async function startRecording() {
-    let stream = await navigator.mediaDevices.getDisplayMedia({
-      video: true
-    })
-  //needed for better browser support
-  const mime = MediaRecorder.isTypeSupported("video/webm; codecs=vp9")  ? "video/webm; codecs=vp9" : "video/webm"
-    let mediaRecorder = new MediaRecorder(stream, {
-        mimeType: mime
-    })
 
-    let chunks = []
-    mediaRecorder.addEventListener('dataavailable', function(e) {
-        chunks.push(e.data)
-    })
-
-    mediaRecorder.addEventListener('stop', function(){
-      let blob = new Blob(chunks, {
-          type: chunks[0].type
-      })
-      let url = URL.createObjectURL(blob)
-
-      let a = document.createElement('a')
-      a.href = url
-      a.download = 'video.webm'
-      a.click()
-  })
-
-    //we have to start the recorder manually
-    mediaRecorder.start()
-};
+ /* 
+ startCapture()
+.then((response) => {
+    let mediaRecorder = createRecorder(response)
+}) 
+*/
